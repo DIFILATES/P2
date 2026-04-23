@@ -32,6 +32,7 @@ int main(int argc, char *argv[]) {
   input_wav  = args.input_wav;
   output_vad = args.output_vad;
   output_wav = args.output_wav;
+
   float alpha0=atof(args.alpha0);
 
   if (input_wav == 0 || output_vad == 0) {
@@ -79,6 +80,7 @@ int main(int argc, char *argv[]) {
     if  ((n_read = sf_read_float(sndfile_in, buffer, frame_size)) != frame_size) break;
 
     if (sndfile_out != 0) {
+      sf_write_float(sndfile_out, buffer, frame_size);
       /* TODO: copy all the samples into sndfile_out */
     }
 
@@ -95,6 +97,10 @@ int main(int argc, char *argv[]) {
     }
 
     if (sndfile_out != 0) {
+      if (state == ST_SILENCE)
+        sf_write_float(sndfile_out, buffer_zeros, frame_size);
+      else
+        sf_write_float(sndfile_out, buffer, frame_size);
       /* TODO: go back and write zeros in silence segments */
     }
   }

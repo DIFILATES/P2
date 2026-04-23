@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 /* TODO: add the needed states */
-typedef enum {ST_UNDEF=0, ST_SILENCE, ST_VOICE, ST_INIT} VAD_STATE;
+typedef enum {ST_UNDEF=0, ST_SILENCE, ST_VOICE, ST_INIT, ST_MAYBE_SILENCE, ST_MAYBE_VOICE} VAD_STATE;
 
 /* Return a string label associated to each state */
 const char *state2str(VAD_STATE st);
@@ -16,7 +16,13 @@ typedef struct {
   float sampling_rate;
   unsigned int frame_length;
   float last_feature; /* for debuggin purposes */
+  float margin; /* margin between silence and voice */
+  float llindar_a; /* threshold for maybe silence -> voice */
+  float llindar_b; /* threshold for maybe voice -> silence */
   float llindar0; /* threshold for voice activity */
+  float counter; /* to count the number of frames in the current state, if needed */
+  float min_voice_frames; /* minimum number of frames to consider a segment as voice, if needed */
+  float min_silence_frames; /* minimum number of frames to consider a segment as silence, if needed */
   } VAD_DATA;
 
 /* Call this function before using VAD: 

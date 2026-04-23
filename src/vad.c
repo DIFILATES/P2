@@ -14,7 +14,7 @@ const float FRAME_TIME = 10.0F; /* in ms. */
  */
 
 const char *state_str[] = {
-  "UNDEF", "S", "V", "INIT"
+  "UNDEF", "S", "V", "INIT", "MAYBE_SILENCE", "MAYBE_VOICE"
 };
 
 const char *state2str(VAD_STATE st) {
@@ -44,6 +44,8 @@ Features compute_features(const float *x, int N) {
    */
   Features feat;
   feat.p = compute_power(x, N);
+  feat.am = compute_am(x, N);
+  feat.zcr = compute_zcr(x, N, 16000);
   return feat;
 }
 
@@ -56,17 +58,28 @@ VAD_DATA * vad_open(float rate) {
   vad_data->state = ST_INIT;
   vad_data->sampling_rate = rate;
   vad_data->frame_length = rate * FRAME_TIME * 1e-3;
+  vad_data->llindar0 = 0.0F;
+  vad_data->llindar_a = 0.0F;
+  vad_data->llindar_b = 0.0F;
+  vad_data->margin = 0.0F;
+  vad_data->counter = 0.0F;
+  vad_data->min_voice_frames = 0.0F;
+  vad_data->min_silence_frames = 0.0F;
   return vad_data;
 }
 
 VAD_STATE vad_close(VAD_DATA *vad_data) {
-  /* 
-   * TODO: decide what to do with the last undecided frames
-   */
-  VAD_STATE state = vad_data->state;
+    VAD_STATE state = vad_data->state;
 
-  free(vad_data);
-  return state;
+    /* Si mor en un estat de dubte, tornem a l'estat estable anterior */
+    if (state == ST_VOICE) {
+        state = ST_VOICE;
+    } else {
+        state = ST_SILENCE;
+    }
+
+    free(vad_data);
+    return state;
 }
 
 unsigned int vad_frame_size(VAD_DATA *vad_data) {
@@ -79,40 +92,62 @@ unsigned int vad_frame_size(VAD_DATA *vad_data) {
  */
 
 VAD_STATE vad(VAD_DATA *vad_data, float *x, float alpha0) {
+    Features f = compute_features(x, vad_data->frame_length);
+    vad_data->last_feature = f.p; 
 
-  /* 
-   * TODO: You can change this, using your own features,
-   * program finite state automaton, define conditions, etc.
-   */
+    switch (vad_data->state) {
+        case ST_INIT:
+            vad_data->llindar0 = f.p + alpha0;
+            vad_data->state = ST_SILENCE;
+            break;
 
-  Features f = compute_features(x, vad_data->frame_length);
-  vad_data->last_feature = f.p; /* save feature, in case you want to show */
+        case ST_SILENCE:
+            if (f.p > vad_data->llindar0) {
+                vad_data->state = ST_MAYBE_VOICE;
+                vad_data->counter = 1;
+            }
+            break;
 
-  switch (vad_data->state) {
-  case ST_INIT:
-    vad_data->state = ST_SILENCE;
-    vad_data->llindar0 = f.p + alpha0;
-    break;
+        case ST_VOICE:
+            if (f.p < vad_data->llindar0) {
+                vad_data->state = ST_MAYBE_SILENCE;
+                vad_data->counter = 1;
+            }
+            break;
 
-  case ST_SILENCE:
-    if (f.p > vad_data->llindar0)
-      vad_data->state = ST_VOICE;
-    break;
+        case ST_MAYBE_VOICE:
+            if (f.p > vad_data->llindar0) {
+                vad_data->counter++;
+                if (vad_data->counter >= 5) {
+                    vad_data->state = ST_VOICE;
+                }
+            } else {
+                vad_data->state = ST_SILENCE;
+            }
+            break;
 
-  case ST_VOICE:
-    if (f.p < vad_data->llindar0)
-      vad_data->state = ST_SILENCE;
-    break;
+        case ST_MAYBE_SILENCE:
+            if (f.p < vad_data->llindar0) {
+                vad_data->counter++;
+                if (vad_data->counter >= 10) {
+                    vad_data->state = ST_SILENCE;
+                }
+            } else {
+                vad_data->state = ST_VOICE;
+            }
+            break;
 
-  case ST_UNDEF:
-    break;
-  }
+        default:
+            break;
+    }
 
-  if (vad_data->state == ST_SILENCE ||
-      vad_data->state == ST_VOICE)
-    return vad_data->state;
-  else
-    return ST_UNDEF;
+    if (vad_data->state == ST_MAYBE_VOICE || vad_data->state == ST_INIT) {
+        return ST_SILENCE;
+    } else if (vad_data->state == ST_MAYBE_SILENCE) {
+        return ST_VOICE;
+    }
+
+    return vad_data->state; 
 }
 
 void vad_show_state(const VAD_DATA *vad_data, FILE *out) {
