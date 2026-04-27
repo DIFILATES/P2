@@ -220,6 +220,8 @@ Ejercicios
 
     ![ComparacioWavesurfer](./img/comparacio.png)
 
+    ![PuntuacioAutoaval](./img/autoaval.png)
+
 - Explique, si existen. las discrepancias entre el etiquetado manual y la detección automática.
 
 ***Tot i les millores introduïdes encara s'aprecien petites diferències naturals.***
@@ -236,7 +238,7 @@ Ejercicios
   continuación las tasas de sensibilidad (*recall*) y precisión para el conjunto de la base de datos (sólo
   el resumen).
 
-  ![TestBaseDades](./img/resultatbase.png)
+  ![TestBaseDades](./img/estatic.png)
 
 
 
@@ -247,6 +249,19 @@ Ejercicios
 - Si ha desarrollado el algoritmo para la cancelación de los segmentos de silencio, inserte una gráfica en
   la que se vea con claridad la señal antes y después de la cancelación (puede que `wavesurfer` no sea la
   mejor opción para esto, ya que no es capaz de visualizar varias señales al mismo tiempo).
+
+    ![AudacityComparacio](./img/soroll.png)
+
+***Per millorar la qualitat del fitxer de sortida, s'ha implementat una funcionalitat que "neteja" el soroll de fons durant les pauses.***
+
+***Implementació: S'ha modificat l'arxiu main_vad.c perquè, quan el detector es troba en estat de silenci (ST_SILENCE), s'escrigui un bloc de zeros al fitxer .wav de sortida en lloc de l'àudio original. Així, el soroll ambient desapareix completament a nivell digital.***
+
+***Resultats: A la imatge es pot veure la comparativa entre la senyal original i la processada pel nostre VAD:***
+
+   ***Visualment: La pista superior mostra una línia totalment plana en els silencios, eliminant el "gruix" del soroll que s'aprecia a la pista inferior.***
+
+   ***Mesura objectiva: L'anàlisi de contrast d'Audacity confirma que el soroll de fons original de -68,59 dB es redueix dràsticament, aconseguint una senyal molt més neta on només destaca la veu.***
+
 
 #### Gestión de las opciones del programa usando `docopt_c`
 
@@ -263,16 +278,35 @@ Ejercicios
 
 ***Finestra de Hamming: S'ha implementat l'aplicació d'una finestra de Hamming abans del càlcul de la potència per aconseguir una mesura més precissa i coherent amb el que es demana.***
 
-***La màquina d'estats es va dissenyar inicialment per prendre decisions combinant múltiples variables alhora per intentar maximitzar la detecció de, per exemple, consonants sordes.***
-
 ***Scripts d'automatització i cerca exhaustiva (Grid Search): Per trobar la configuració òptima de manera empírica i rigorosa, s'han desenvolupat scripts de Bash personalitzats. Aquests programes iteren automàticament sobre rangs de valors per a tots els paràmetres (alphas, llindars i temps), avaluen tota la base de dades, n'extreuen l'eficiència global mitjançant filtres de text (com grep), ordenen els resultats per mostrar directament les combinacions amb un percentatge d'encert més alt.***
+
+***Cancel·lació de Soroll en la Sortida: S'ha programat el sistema perquè, quan es detecta silenci, s'escriguin zeros directament al fitxer .wav de sortida. Com s'ha demostrat amb l'anàlisi realitzat amb Audacity, això elimina el soroll de fons.***
+
+***Detecció Multiparamètrica: L'algorisme no depèn només de l'energia, sinó que combina l'anàlisi de la potència amb el ZCR. S'ha implementat una lògica on, si es detecta un ZCR elevat (característic de fonemes fricatius com les "s"), els llindars d'energia es tornen dinàmicament més sensibles. Això permet capturar amb precisió els inicis i finals de paraula que sovint es perdrien si només s'utilitzés l'energia.***
+
+***Detecció mitjançant Doble Llindar (Histeresi): En lloc d'utilitzar un únic llindar ($\alpha_0$), s'han incorporat dos paràmetres addicionals, $\alpha_1$ (activació) i $\alpha_2$ (manteniment). Aquesta estratègia d'histeresi permet que el sistema sigui exigent per començar a detectar veu, però més permissiu per mantenir l'estat de veu un cop detectat.***
+
+***Adaptació Dinàmica del Soroll: S'ha modificat l'algorisme perquè el llindar de decisió no sigui fix. Mentre el sistema detecta silenci (ST_SILENCE), s'actualitza contínuament l'estimació de la potència del soroll de fons mitjançant un filtre de mitjana mòbil exponencial ($98\%$ memòria històrica, $2\%$ energia de la trama actual). Això garanteix que el VAD funcioni correctament encara que el soroll ambient canviï durant la gravació.***
+
+
+  ![TestBaseDades](./img/estatic.png)
+
+   ***-->Tot i que aquesta versió dinàmica presenta una lleugera baixada de l'F-score global (92,09% respecte 92,181% a l'estàtic), es prioritza per sobre del model estàtic ja que millora la Precision de veu ($90,94\%$) i el Recall del silenci ($85,15\%$), demostrant un comportament molt més professional i adaptable a entorns acústics canviants.***
+
 
 
 - Si lo desea, puede realizar también algún comentario acerca de la realización de la práctica que
   considere de interés de cara a su evaluación.
 
-***Vam invertir moltes hores intentant integrar el ZCR com a variable per afinar la detecció de consonants sordes sobretot. Tot i tenir-ho ben implementat, vam trobar-nos que en aquesta base de dades concreta penalitzava el rendiment, ja que el soroll de fons o els àudios rudimentaris dels que es disposa disparava els falsos positius. Descartar-lo i fixar-ho a zero ha estat una decisió de disseny conscient basada en resultats objectius.***
+***El disseny final no s'ha basat en l'atzar, sinó en un mètode d'optimització:***
 
+***Ús de vinga: S'ha utilitzat aquest script per realitzar una cerca sistemàtica dels millors llindars ($\alpha_0, \alpha_1, \alpha_2$ i $ZCR$). Això ha permès maximitzar l'F-score mitjançant mètriques objectives, trobant l'equilibri òptim entre precisió i recall.***
+
+***Validació amb Audacity: S'ha emprat com a eina de control de qualitat per verificar visualment que no es produïssin talls en les locucions i per mesurar, mitjançant l'anàlisi de contrast (dB RMS), l'eficàcia real de la cancel·lació de soroll.***
+
+ ![Vinga](./img/vingaout.png)
+
+ 
 
 ### Antes de entregar la práctica
 
