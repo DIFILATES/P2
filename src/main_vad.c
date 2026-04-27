@@ -33,7 +33,6 @@ int main(int argc, char *argv[]) {
   output_vad = args.output_vad;
   output_wav = args.output_wav;
 
-  /* Extracción de argumentos con nombres de tu docopt */
   float a0  = atof(args.alpha0);
   float a1  = atof(args.alpha1);
   float a2  = atof(args.alpha2);
@@ -70,7 +69,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  /* Inicialización corregida */
+
   vad_data = vad_open(sf_info.samplerate, a0, zcr, flen, lv, ls);
   frame_size   = vad_frame_size(vad_data);
   buffer       = (float *) malloc(frame_size * sizeof(float));
@@ -80,7 +79,7 @@ int main(int argc, char *argv[]) {
   frame_duration = (float) frame_size / (float) sf_info.samplerate;
   last_state = ST_UNDEF;
 
-  /* Bucle de procesamiento */
+
   for (t = last_t = 0; ; t++) {
     if ((n_read = sf_read_float(sndfile_in, buffer, frame_size)) != frame_size) break;
 
@@ -88,7 +87,7 @@ int main(int argc, char *argv[]) {
     
     if (verbose & DEBUG_VAD) vad_show_state(vad_data, stdout);
 
-    /* Escritura de audio con silenciado (Punto 3) */
+  
     if (sndfile_out != 0) {
       if (state == ST_SILENCE)
         sf_write_float(sndfile_out, buffer_zeros, frame_size);
@@ -96,7 +95,7 @@ int main(int argc, char *argv[]) {
         sf_write_float(sndfile_out, buffer, frame_size);
     }
 
-    /* Gestión de etiquetas de tiempo */
+
     if (state != last_state) {
       if (t != last_t)
         fprintf(vadfile, "%.5f\t%.5f\t%s\n", last_t * frame_duration, t * frame_duration, state2str(last_state));

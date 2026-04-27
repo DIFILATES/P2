@@ -40,32 +40,52 @@ VAD_DATA * vad_open(float rate, float alpha0, float zcr, int framelength, float 
     vad_data->lim_veu = lim_veu;
     vad_data->lim_sil = lim_sil;
     
-    vad_data->counter = 0;
-    vad_data->llindar0 = 0;
+    vad_data->init_p = 0.0;
+    vad_data->init_N = 0;
+    vad_data->noise_power = 0.0; 
+
     return vad_data;
 }
 
 VAD_STATE vad(VAD_DATA *vad_data, float *x, float alpha1, float alpha2) {
     Features f = compute_features(x, vad_data->frame_length);
-    vad_data->last_feature = f.p;
+    
+    float p_db = f.p; 
+    vad_data->last_feature = p_db;
 
-    float l_act = vad_data->llindar0 + alpha1; 
-    float l_maint = l_act - alpha2;         
+    float effective_a1 = alpha1;
+    float effective_a2 = alpha2;
+
+    if (vad_data->zcr_threshold > 0 && f.zcr > vad_data->zcr_threshold) {
+        effective_a1 *= 0.7f; 
+        effective_a2 *= 0.7f; 
+    }
+
+    float l_act = vad_data->llindar0 + effective_a1; 
+    float l_maint = l_act - effective_a2;         
     
-    // LA CLAU PEL 95%: S'activa si supera l'energia O si el ZCR supera el llindar
-    int is_active = (f.p > l_act) || (vad_data->zcr_threshold > 0 && f.zcr > vad_data->zcr_threshold);
-    int is_maintain = (f.p > l_maint) || (vad_data->zcr_threshold > 0 && f.zcr > vad_data->zcr_threshold);
-    
+    int is_active = (p_db > l_act);
+    int is_maintain = (p_db > l_maint);
+
     switch (vad_data->state) {
         case ST_INIT:
-            vad_data->llindar0 = f.p + vad_data->alpha0; 
-            vad_data->state = ST_SILENCE;
+            vad_data->init_p += p_db;
+            vad_data->init_N++;
+            
+            if ((vad_data->init_N * vad_data->framelength) >= 100) {
+                vad_data->noise_power = vad_data->init_p / vad_data->init_N;
+                vad_data->llindar0 = vad_data->noise_power + vad_data->alpha0; 
+                vad_data->state = ST_SILENCE;
+            }
             break;
 
         case ST_SILENCE:
             if (is_active) { 
                 vad_data->state = ST_MAYBE_VOICE;
                 vad_data->counter = 1;
+            } else {
+                vad_data->noise_power = 0.98f * vad_data->noise_power + 0.02f * p_db;
+                vad_data->llindar0 = vad_data->noise_power + vad_data->alpha0;
             }
             break;
 
