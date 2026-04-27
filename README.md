@@ -193,7 +193,7 @@ Ejercicios
       evitant talls innecessaris en la detecció.***
     
     ***- Complementarietat: Mentre la potència defineix el "cos" de la veu (vocals), la ZCR defineix la naturalesa
-      del so (sord vs. sonor), essent una eina de guarda fonamental per ajustar els llindars de decisió del VAD.***
+      del so (sord vs sonor), essent una eina de guarda fonamental per ajustar els llindars de decisió del VAD.***
  
 
 
@@ -278,20 +278,20 @@ Ejercicios
 
 ***Finestra de Hamming: S'ha implementat l'aplicació d'una finestra de Hamming abans del càlcul de la potència per aconseguir una mesura més precissa i coherent amb el que es demana.***
 
-***Scripts d'automatització i cerca exhaustiva (Grid Search): Per trobar la configuració òptima de manera empírica i rigorosa, s'han desenvolupat scripts de Bash personalitzats. Aquests programes iteren automàticament sobre rangs de valors per a tots els paràmetres (alphas, llindars i temps), avaluen tota la base de dades, n'extreuen l'eficiència global mitjançant filtres de text (com grep), ordenen els resultats per mostrar directament les combinacions amb un percentatge d'encert més alt.***
+***Scripts d'automatització i cerca exhaustiva: Per trobar la configuració òptima de manera empírica i rigorosa, s'han desenvolupat scripts de Bash personalitzats. Aquests programes iteren automàticament sobre rangs de valors per a tots els paràmetres (alphas, llindars i temps), avaluen tota la base de dades, n'extreuen l'eficiència global mitjançant filtres de text (com grep), ordenen els resultats per mostrar directament les combinacions amb un percentatge d'encert més alt.***
 
 ***Cancel·lació de Soroll en la Sortida: S'ha programat el sistema perquè, quan es detecta silenci, s'escriguin zeros directament al fitxer .wav de sortida. Com s'ha demostrat amb l'anàlisi realitzat amb Audacity, això elimina el soroll de fons.***
 
 ***Detecció Multiparamètrica: L'algorisme no depèn només de l'energia, sinó que combina l'anàlisi de la potència amb el ZCR. S'ha implementat una lògica on, si es detecta un ZCR elevat (característic de fonemes fricatius com les "s"), els llindars d'energia es tornen dinàmicament més sensibles. Això permet capturar amb precisió els inicis i finals de paraula que sovint es perdrien si només s'utilitzés l'energia.***
 
-***Detecció mitjançant Doble Llindar (Histeresi): En lloc d'utilitzar un únic llindar ($\alpha_0$), s'han incorporat dos paràmetres addicionals, $\alpha_1$ (activació) i $\alpha_2$ (manteniment). Aquesta estratègia d'histeresi permet que el sistema sigui exigent per començar a detectar veu, però més permissiu per mantenir l'estat de veu un cop detectat.***
+***Detecció mitjançant Doble Llindar (Histeresi): En lloc d'utilitzar un únic llindar alpha0, s'han incorporat dos paràmetres addicionals, alpha1 (activació) i alpha2 (manteniment). Aquesta estratègia d'histeresi permet que el sistema sigui exigent per començar a detectar veu, però més permissiu per mantenir l'estat de veu un cop detectat.***
 
-***Adaptació Dinàmica del Soroll: S'ha modificat l'algorisme perquè el llindar de decisió no sigui fix. Mentre el sistema detecta silenci (ST_SILENCE), s'actualitza contínuament l'estimació de la potència del soroll de fons mitjançant un filtre de mitjana mòbil exponencial ($98\%$ memòria històrica, $2\%$ energia de la trama actual). Això garanteix que el VAD funcioni correctament encara que el soroll ambient canviï durant la gravació.***
+***Adaptació Dinàmica del Soroll: S'ha modificat l'algorisme perquè el llindar de decisió no sigui fix. Mentre el sistema detecta silenci (ST_SILENCE), s'actualitza contínuament l'estimació de la potència del soroll de fons mitjançant un filtre de mitjana mòbil exponencial (98% memòria històrica, 2% energia de la trama actual). Això garanteix que el VAD funcioni correctament encara que el soroll ambient canviï durant la gravació.***
 
 
   ![TestBaseDades](./img/estatic.png)
 
-   ***-->Tot i que aquesta versió dinàmica presenta una lleugera baixada de l'F-score global (92,09% respecte 92,181% a l'estàtic), es prioritza per sobre del model estàtic ja que millora la Precision de veu ($90,94\%$) i el Recall del silenci ($85,15\%$), demostrant un comportament molt més professional i adaptable a entorns acústics canviants.***
+   ***-->Tot i que aquesta versió dinàmica presenta una lleugera baixada de l'F-score global (92,09% respecte 92,181% a l'estàtic), es prioritza per sobre del model estàtic ja que millora la Precision de veu (90,94%) i el Recall del silenci (85,15%), demostrant un comportament molt més professional i adaptable a entorns acústics canviants.***
 
 
 
@@ -300,7 +300,7 @@ Ejercicios
 
 ***El disseny final no s'ha basat en l'atzar, sinó en un mètode d'optimització:***
 
-***Ús de vinga: S'ha utilitzat aquest script per realitzar una cerca sistemàtica dels millors llindars ($\alpha_0, \alpha_1, \alpha_2$ i $ZCR$). Això ha permès maximitzar l'F-score mitjançant mètriques objectives, trobant l'equilibri òptim entre precisió i recall.***
+***Ús de "vinga": S'ha utilitzat aquest script per realitzar una cerca sistemàtica dels millors llindars (alpha0, alpha1, alpha2 i ZCR). Això ha permès maximitzar l'F-score mitjançant mètriques objectives, trobant l'equilibri òptim entre precisió i recall.***
 
 ***Validació amb Audacity: S'ha emprat com a eina de control de qualitat per verificar visualment que no es produïssin talls en les locucions i per mesurar, mitjançant l'anàlisi de contrast (dB RMS), l'eficàcia real de la cancel·lació de soroll.***
 
