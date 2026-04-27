@@ -179,15 +179,19 @@ Ejercicios
   * ¿Es capaz de sacar alguna conclusión a partir de la evolución de la tasa de cruces por cero?
 
      ***A partir de la comparació entre la potència i la ZCR en el nostre gràfic, podem concloure:***
+    
     ***- Identificació de sons sords: La ZCR ens permet detectar segments de parla amb poca energia però
       alta freqüència, com les consonants fricatives (pels pics elevats de ZCR), que la potència per si
       sola podria classificar erròniament com a silenci.***
+    
     ***- Precisió en els extrems de la parla: La ZCR actua com un excel·lent indicador dels inicis i finals
       de paraula. Hem observat que la ZCR sovint s'activa abans que la potència arribi al seu llindar,
       ajudant a no "menjar-se" les primeres consonants de cada frase.***
+    
     ***- Discriminació de soroll i pauses: En els segments de silenci real, la ZCR es manté baixa i estable.
       Això ens ajuda a diferenciar les pauses breus entre paraules (on la ZCR fluctua) del silenci absolut,
       evitant talls innecessaris en la detecció.***
+    
     ***- Complementarietat: Mentre la potència defineix el "cos" de la veu (vocals), la ZCR defineix la naturalesa
       del so (sord vs. sonor), essent una eina de guarda fonamental per ajustar els llindars de decisió del VAD.***
  
