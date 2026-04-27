@@ -146,18 +146,52 @@ Ejercicios
   > dificultada. Puede detectar esta situación visualizando el nivel de potencia estimado por el propio
   > `wavesurfer` y corregirla usando la herramienta de corte (:scissors:).
 
+ ![CorteSilencioInicial](./img/silenci.png)
+
+ ***La nostra grabació començava per un segment de silenci més extrem. De forma que hem corregit aquesta situació
+  eliminat aquest tram de 0 a 0.4s, per evitar possibles errors.***
+
 - Etiquete manualmente los segmentos de voz y silencio del fichero grabado al efecto. Inserte, a
   continuación, una captura de `wavesurfer` en la que se vea con claridad la señal temporal, el contorno de
   potencia y la tasa de cruces por cero, junto con el etiquetado manual de los segmentos.
 
+ ![EtiquetadoManual](./img/tarea1.png)
+
+ 
 - A la vista de la gráfica, indique qué valores considera adecuados para las magnitudes siguientes:
 
   * Incremento del nivel potencia en dB, respecto al nivel correspondiente al silencio inicial, para
     estar seguros de que un segmento de señal se corresponde con voz.
 
+    ***Observem com el silenci incial es troba en aproximadament -5dB i passa a 60dB en pic comença la parla real.
+    Això correspon a un increment del nivell de potència inicial de 55dB. Durant la resta de la gravació la variació
+    dels segments de veu és troba aproximadament entre els valors de 25 i 65dB. Per tant, per sobre dels 25dB, un increment
+    de 20dB pod considerar-se un umbral adequat per identificar un segment de veu amb seguretat.***
+
+
   * Duración mínima razonable de los segmentos de voz y silencio.
 
+    ***A partir de la visualització de la nostra grabació, la duració mínima raonable pels segments de veu és de 200-300ms
+    i pels segments de silenci 100ms. D'aquesta forma intentarem evitar errors de classificació i assegurar-nos la detecció
+    d'un só de parla real i assegurar que no és un cop breu, juntament a la detecció de silencis reals per evitar el tall
+    de paraules i frases.***
+
   * ¿Es capaz de sacar alguna conclusión a partir de la evolución de la tasa de cruces por cero?
+
+     ***A partir de la comparació entre la potència i la ZCR en el nostre gràfic, podem concloure:***
+    ***- Identificació de sons sords: La ZCR ens permet detectar segments de parla amb poca energia però
+      alta freqüència, com les consonants fricatives (pels pics elevats de ZCR), que la potència per si
+      sola podria classificar erròniament com a silenci.***
+    ***- Precisió en els extrems de la parla: La ZCR actua com un excel·lent indicador dels inicis i finals
+      de paraula. Hem observat que la ZCR sovint s'activa abans que la potència arribi al seu llindar,
+      ajudant a no "menjar-se" les primeres consonants de cada frase.***
+    ***- Discriminació de soroll i pauses: En els segments de silenci real, la ZCR es manté baixa i estable.
+      Això ens ajuda a diferenciar les pauses breus entre paraules (on la ZCR fluctua) del silenci absolut,
+      evitant talls innecessaris en la detecció.***
+    ***- Complementarietat: Mentre la potència defineix el "cos" de la veu (vocals), la ZCR defineix la naturalesa
+      del so (sord vs. sonor), essent una eina de guarda fonamental per ajustar els llindars de decisió del VAD.***
+ 
+
 
 
 ### Desarrollo del detector de actividad vocal
@@ -165,14 +199,41 @@ Ejercicios
 - Complete el código de los ficheros de la práctica para implementar un detector de actividad vocal en
   tiempo real tan exacto como sea posible. Tome como objetivo la maximización de la puntuación-F `TOTAL`.
 
+***Per maximitzar l'F-score TOTAL, hem millorat el detector bàsic afegint noves característiques i una màquina d'estats més robusta:***
+
+***Ús del ZCR: Com que els fonemes sords o fricatius (com /s/ o /f/) tenen poca energia, incorporem ZCR per detectar-los i reduir els falsos negatius.***
+
+***Doble llindar (Histeresi amb alpha1 i alpha2): Apliquem un llindar alt d'activació per començar a detectar veu, però un de més baix per mantenir-la. Això evita que petites caigudes d'energia tallin la detecció.***
+
+***Marge de silenci (lim_sil): S'introdueix l'estat ST_MAYBE_SILENCE. El silenci només es confirma si la caiguda d'energia es manté un temps mínim, evitant partir paraules a causa de les pauses naturals de la parla (ex: abans d'una /p/).***
+
+***Filtratge de sorolls curts (lim_veu): Amb l'estat ST_MAYBE_VOICE, exigim que l'activitat acústica duri un temps mínim abans de classificar-la com a veu. Això filtra sorolls breus o cops aïllats (millorant la Precision).***
+
+
+
 - Inserte una gráfica en la que se vea con claridad la señal temporal, el etiquetado manual y la detección
-  automática conseguida para el fichero grabado al efecto. 
+  automática conseguida para el fichero grabado al efecto.
+
+    ![ComparacioWavesurfer](./img/comparacio.png)
 
 - Explique, si existen. las discrepancias entre el etiquetado manual y la detección automática.
+
+***Tot i les millores introduïdes encara s'aprecien petites diferències naturals.***
+***Retard en l'activació (Biaix inicial): Les etiquetes de veu automàtiques comencen lleugerament més tard que les manuals. Això es deu al temps de confirmació necessari (paràmetre -p) perquè l'algoritme asseguri que l'increment d'energia no és un soroll transitori.***
+
+***Fragmentació per baixa energia: En segments de parla amb consonants suaus o pauses breus (com es veu entre els segons 4 i 5), el VAD tanca l'etiqueta abans d'hora. Mentre l'humà identifica la continuïtat de la frase, l'algoritme detecta una caiguda de potència per sota del llindar de manteniment.***
+
+***Diferència de sensibilitat al silenci: L'etiquetatge manual és més precís definint els límits exactes de les pauses. El VAD utilitza un temps de guarda (-l) que tendeix a allargar els segments de veu o ajuntar paraules properes en un sol bloc.***
+
+***Falsos positius per soroll de fons: Al final de l'àudio, el VAD detecta activitat on el manual marca silenci pur. Això és degut a la presència de soroll ambiental o respiracions que superen el llindar d'activació basat en l'energia inicial (llindar0).***
+
 
 - Evalúe los resultados sobre la base de datos `db.v4` con el script `vad_evaluation.pl` e inserte a 
   continuación las tasas de sensibilidad (*recall*) y precisión para el conjunto de la base de datos (sólo
   el resumen).
+
+  ![TestBaseDades](./img/resultatbase.png)
+
 
 
 ### Trabajos de ampliación
@@ -188,14 +249,25 @@ Ejercicios
 - Si ha usado `docopt_c` para realizar la gestión de las opciones y argumentos del programa `vad`, inserte
   una captura de pantalla en la que se vea el mensaje de ayuda del programa.
 
+  ![Visualdocopt](./img/docopt.png)
+
 
 ### Contribuciones adicionales y/o comentarios acerca de la práctica
 
 - Indique a continuación si ha realizado algún tipo de aportación suplementaria (algoritmos de detección o 
   parámetros alternativos, etc.).
 
+***Finestra de Hamming: S'ha implementat l'aplicació d'una finestra de Hamming abans del càlcul de la potència per aconseguir una mesura més precissa i coherent amb el que es demana.***
+
+***La màquina d'estats es va dissenyar inicialment per prendre decisions combinant múltiples variables alhora per intentar maximitzar la detecció de, per exemple, consonants sordes.***
+
+***Scripts d'automatització i cerca exhaustiva (Grid Search): Per trobar la configuració òptima de manera empírica i rigorosa, s'han desenvolupat scripts de Bash personalitzats. Aquests programes iteren automàticament sobre rangs de valors per a tots els paràmetres (alphas, llindars i temps), avaluen tota la base de dades, n'extreuen l'eficiència global mitjançant filtres de text (com grep), ordenen els resultats per mostrar directament les combinacions amb un percentatge d'encert més alt.***
+
+
 - Si lo desea, puede realizar también algún comentario acerca de la realización de la práctica que
   considere de interés de cara a su evaluación.
+
+***Vam invertir moltes hores intentant integrar el ZCR com a variable per afinar la detecció de consonants sordes sobretot. Tot i tenir-ho ben implementat, vam trobar-nos que en aquesta base de dades concreta penalitzava el rendiment, ja que el soroll de fons o els àudios rudimentaris dels que es disposa disparava els falsos positius. Descartar-lo i fixar-ho a zero ha estat una decisió de disseny conscient basada en resultats objectius.***
 
 
 ### Antes de entregar la práctica
