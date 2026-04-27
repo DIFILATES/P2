@@ -1,124 +1,78 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-
 #include "vad.h"
 #include "pav_analysis.h"
 
-const float FRAME_TIME = 10.0F; /* in ms. */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
-/* 
- * As the output state is only ST_VOICE, ST_SILENCE, or ST_UNDEF,
- * only this labels are needed. You need to add all labels, in case
- * you want to print the internal state in string format
- */
-
-const char *state_str[] = {
-  "UNDEF", "S", "V", "INIT", "MAYBE_SILENCE", "MAYBE_VOICE"
-};
-
-const char *state2str(VAD_STATE st) {
-  return state_str[st];
-}
-
-/* Define a datatype with interesting features */
 typedef struct {
-  float zcr;
-  float p;
-  float am;
+    float zcr;
+    float p;
+    float am;
 } Features;
 
-/* 
- * TODO: Delete and use your own features!
- */
-
 Features compute_features(const float *x, int N) {
-  /*
-   * Input: x[i] : i=0 .... N-1 
-   * Ouput: computed features
-   */
-  /* 
-   * DELETE and include a call to your own functions
-   *
-   * For the moment, compute random value between 0 and 1 
-   */
-  Features feat;
-  feat.p = compute_power(x, N);
-  feat.am = compute_am(x, N);
-  feat.zcr = compute_zcr(x, N, 16000);
-  return feat;
-}
+    Features feat;
+    float win[N]; 
 
-/* 
- * TODO: Init the values of vad_data
- */
-
-VAD_DATA * vad_open(float rate) {
-  VAD_DATA *vad_data = malloc(sizeof(VAD_DATA));
-  vad_data->state = ST_INIT;
-  vad_data->sampling_rate = rate;
-  vad_data->frame_length = rate * FRAME_TIME * 1e-3;
-  vad_data->llindar0 = 0.0F;
-  vad_data->llindar_a = 0.0F;
-  vad_data->llindar_b = 0.0F;
-  vad_data->margin = 0.0F;
-  vad_data->counter = 0.0F;
-  vad_data->min_voice_frames = 0.0F;
-  vad_data->min_silence_frames = 0.0F;
-  return vad_data;
-}
-
-VAD_STATE vad_close(VAD_DATA *vad_data) {
-    VAD_STATE state = vad_data->state;
-
-    /* Si mor en un estat de dubte, tornem a l'estat estable anterior */
-    if (state == ST_VOICE) {
-        state = ST_VOICE;
-    } else {
-        state = ST_SILENCE;
+    for (int n = 0; n < N; n++) {
+        win[n] = 0.54 - 0.46 * cos(2.0 * M_PI * n / (N - 1));
     }
 
-    free(vad_data);
-    return state;
+    feat.p = compute_power_win(x, win, N);
+    feat.am = compute_am(x, N);
+    feat.zcr = compute_zcr(x, N, 16000); 
+    return feat;
 }
 
-unsigned int vad_frame_size(VAD_DATA *vad_data) {
-  return vad_data->frame_length;
+VAD_DATA * vad_open(float rate, float alpha0, float zcr, int framelength, float lim_veu, float lim_sil) {
+    VAD_DATA *vad_data = malloc(sizeof(VAD_DATA));
+    vad_data->state = ST_INIT;
+    vad_data->sampling_rate = rate;
+    vad_data->alpha0 = alpha0;
+    vad_data->framelength = (float)framelength;
+    vad_data->frame_length = rate * (float)framelength * 1e-3;
+    
+    vad_data->zcr_threshold = zcr;
+    vad_data->lim_veu = lim_veu;
+    vad_data->lim_sil = lim_sil;
+    
+    vad_data->counter = 0;
+    vad_data->llindar0 = 0;
+    return vad_data;
 }
 
-/* 
- * TODO: Implement the Voice Activity Detection 
- * using a Finite State Automata
- */
-
-VAD_STATE vad(VAD_DATA *vad_data, float *x, float alpha0) {
+VAD_STATE vad(VAD_DATA *vad_data, float *x, float alpha1, float alpha2) {
     Features f = compute_features(x, vad_data->frame_length);
-    vad_data->last_feature = f.p; 
+    vad_data->last_feature = f.p;
 
+    float l_act = vad_data->llindar0 + alpha1; 
+    float l_maint = l_act - alpha2;         
+    
+    // LA CLAU PEL 95%: S'activa si supera l'energia O si el ZCR supera el llindar
+    int is_active = (f.p > l_act) || (vad_data->zcr_threshold > 0 && f.zcr > vad_data->zcr_threshold);
+    int is_maintain = (f.p > l_maint) || (vad_data->zcr_threshold > 0 && f.zcr > vad_data->zcr_threshold);
+    
     switch (vad_data->state) {
         case ST_INIT:
-            vad_data->llindar0 = f.p + alpha0;
+            vad_data->llindar0 = f.p + vad_data->alpha0; 
             vad_data->state = ST_SILENCE;
             break;
 
         case ST_SILENCE:
-            if (f.p > vad_data->llindar0) {
+            if (is_active) { 
                 vad_data->state = ST_MAYBE_VOICE;
                 vad_data->counter = 1;
             }
             break;
 
-        case ST_VOICE:
-            if (f.p < vad_data->llindar0) {
-                vad_data->state = ST_MAYBE_SILENCE;
-                vad_data->counter = 1;
-            }
-            break;
-
         case ST_MAYBE_VOICE:
-            if (f.p > vad_data->llindar0) {
+            if (is_maintain) {
                 vad_data->counter++;
-                if (vad_data->counter >= 5) {
+                if ((vad_data->counter * vad_data->framelength) >= vad_data->lim_veu) {
                     vad_data->state = ST_VOICE;
                 }
             } else {
@@ -126,30 +80,49 @@ VAD_STATE vad(VAD_DATA *vad_data, float *x, float alpha0) {
             }
             break;
 
+        case ST_VOICE:
+            if (!is_maintain) {
+                vad_data->state = ST_MAYBE_SILENCE;
+                vad_data->counter = 1;
+            }
+            break;
+
         case ST_MAYBE_SILENCE:
-            if (f.p < vad_data->llindar0) {
+            if (!is_maintain) {
                 vad_data->counter++;
-                if (vad_data->counter >= 10) {
+                if ((vad_data->counter * vad_data->framelength) >= vad_data->lim_sil) {
                     vad_data->state = ST_SILENCE;
                 }
             } else {
                 vad_data->state = ST_VOICE;
             }
             break;
-
+            
         default:
             break;
     }
 
-    if (vad_data->state == ST_MAYBE_VOICE || vad_data->state == ST_INIT) {
-        return ST_SILENCE;
-    } else if (vad_data->state == ST_MAYBE_SILENCE) {
+    if (vad_data->state == ST_VOICE || vad_data->state == ST_MAYBE_SILENCE) {
         return ST_VOICE;
     }
+    return ST_SILENCE;
+}
 
-    return vad_data->state; 
+VAD_STATE vad_close(VAD_DATA *vad_data) {
+    VAD_STATE state = (vad_data->state == ST_VOICE) ? ST_VOICE : ST_SILENCE;
+    free(vad_data);
+    return state;
+}
+
+unsigned int vad_frame_size(VAD_DATA *vad_data) {
+    return vad_data->frame_length;
+}
+
+const char *state2str(VAD_STATE st) {
+    if (st == ST_VOICE) return "V";
+    return "S"; 
 }
 
 void vad_show_state(const VAD_DATA *vad_data, FILE *out) {
-  fprintf(out, "%d\t%f\n", vad_data->state, vad_data->last_feature);
+    fprintf(out, "%d\t%f\n", vad_data->state, vad_data->last_feature);
 }

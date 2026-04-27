@@ -6,10 +6,17 @@ Usage:
    vad --version
 
 Options:
-   -i FILE, --input-wav=FILE   WAVE file for voice activity detection
-   -o FILE, --output-vad=FILE  Label file with the result of VAD
-   -w FILE, --output-wav=FILE  WAVE file with silences cleared
-   -0 FLOAT, --alpha0 FLOAT    Increment per calcular el llindar de silenci [default: 5]
+   -i FILE, --input-wav=FILE      WAVE file for voice activity detection
+   -o FILE, --output-vad=FILE     Label file with the result of VAD
+   -w FILE, --output-wav=FILE     WAVE file with silences cleared
+   -0 FLOAT, --alpha0=FLOAT       Increment per calcular el llindar de silenci [default: 5]
+   -1 REAL, --alpha1=REAL         Alpha 1 de decisió veu/silenci [default: 14.0]
+   -2 REAL, --alpha2=REAL         alpha 2 de decisió veu/silenci [default: 7.0]
+   -f INT, --framelength=INT      Durada d'una trama [default: 10]
+   -z FLOAT, --zcr=FLOAT          Llindar de detecció sonoritat [default: 0.0]
+   -l FLOAT, --lim_sil=FLOAT      Límit de còmput de silenci [default: 150.0]
+   -p FLOAT, --lim_veu=FLOAT      Límit de còmput de veu [default: 30.0]
    -v, --verbose  Show debug information
    -h, --help     Show this screen
    --version      Show the version of the project
+

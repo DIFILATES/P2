@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <sndfile.h>
+#include <string.h>
 
 #include "vad.h"
 #include "vad_docopt.h"
@@ -9,8 +10,7 @@
 #define DEBUG_VAD 0x1
 
 int main(int argc, char *argv[]) {
-  int verbose = 0; /* To show internal state of vad: verbose = DEBUG_VAD; */
-
+  int verbose = 0;
   SNDFILE *sndfile_in, *sndfile_out = 0;
   SF_INFO sf_info;
   FILE *vadfile;
@@ -20,97 +20,95 @@ int main(int argc, char *argv[]) {
   VAD_STATE state, last_state;
 
   float *buffer, *buffer_zeros;
-  int frame_size;         /* in samples */
-  float frame_duration;   /* in seconds */
-  unsigned int t, last_t; /* in frames */
+  int frame_size;         
+  float frame_duration;   
+  unsigned int t, last_t; 
 
-  char	*input_wav, *output_vad, *output_wav;
+  char *input_wav, *output_vad, *output_wav;
 
-  DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ "2.0");
+  DocoptArgs args = docopt(argc, argv, 1, "2.0");
 
   verbose    = args.verbose ? DEBUG_VAD : 0;
   input_wav  = args.input_wav;
   output_vad = args.output_vad;
   output_wav = args.output_wav;
 
-  float alpha0=atof(args.alpha0);
+  /* Extracción de argumentos con nombres de tu docopt */
+  float a0  = atof(args.alpha0);
+  float a1  = atof(args.alpha1);
+  float a2  = atof(args.alpha2);
+  float zcr = atof(args.zcr);
+  int flen  = atoi(args.framelength);
+  float lv  = atof(args.lim_veu);
+  float ls  = atof(args.lim_sil);
 
   if (input_wav == 0 || output_vad == 0) {
     fprintf(stderr, "%s\n", args.usage_pattern);
     return -1;
   }
 
-  /* Open input sound file */
   if ((sndfile_in = sf_open(input_wav, SFM_READ, &sf_info)) == 0) {
-    fprintf(stderr, "Error opening input file %s (%s)\n", input_wav, strerror(errno));
+    fprintf(stderr, "Error opening input file %s\n", input_wav);
     return -1;
   }
 
   if (sf_info.channels != 1) {
-    fprintf(stderr, "Error: the input file has to be mono: %s\n", input_wav);
+    fprintf(stderr, "Error: mono only.\n");
+    sf_close(sndfile_in);
     return -2;
   }
 
-  /* Open vad file */
   if ((vadfile = fopen(output_vad, "wt")) == 0) {
-    fprintf(stderr, "Error opening output vad file %s (%s)\n", output_vad, strerror(errno));
+    fprintf(stderr, "Error opening output vad file\n");
     return -1;
   }
 
-  /* Open output sound file, with same format, channels, etc. than input */
   if (output_wav) {
     if ((sndfile_out = sf_open(output_wav, SFM_WRITE, &sf_info)) == 0) {
-      fprintf(stderr, "Error opening output wav file %s (%s)\n", output_wav, strerror(errno));
+      fprintf(stderr, "Error opening output wav file\n");
       return -1;
     }
   }
 
-  vad_data = vad_open(sf_info.samplerate);
-  /* Allocate memory for buffers */
+  /* Inicialización corregida */
+  vad_data = vad_open(sf_info.samplerate, a0, zcr, flen, lv, ls);
   frame_size   = vad_frame_size(vad_data);
   buffer       = (float *) malloc(frame_size * sizeof(float));
   buffer_zeros = (float *) malloc(frame_size * sizeof(float));
   for (i=0; i< frame_size; ++i) buffer_zeros[i] = 0.0F;
 
-  frame_duration = (float) frame_size/ (float) sf_info.samplerate;
+  frame_duration = (float) frame_size / (float) sf_info.samplerate;
   last_state = ST_UNDEF;
 
-  for (t = last_t = 0; ; t++) { /* For each frame ... */
-    /* End loop when file has finished (or there is an error) */
-    if  ((n_read = sf_read_float(sndfile_in, buffer, frame_size)) != frame_size) break;
+  /* Bucle de procesamiento */
+  for (t = last_t = 0; ; t++) {
+    if ((n_read = sf_read_float(sndfile_in, buffer, frame_size)) != frame_size) break;
 
-    if (sndfile_out != 0) {
-      sf_write_float(sndfile_out, buffer, frame_size);
-      /* TODO: copy all the samples into sndfile_out */
-    }
-
-    state = vad(vad_data, buffer, alpha0);
+    state = vad(vad_data, buffer, a1, a2);
+    
     if (verbose & DEBUG_VAD) vad_show_state(vad_data, stdout);
 
-    /* TODO: print only SILENCE and VOICE labels */
-    /* As it is, it prints UNDEF segments but is should be merge to the proper value */
+    /* Escritura de audio con silenciado (Punto 3) */
+    if (sndfile_out != 0) {
+      if (state == ST_SILENCE)
+        sf_write_float(sndfile_out, buffer_zeros, frame_size);
+      else
+        sf_write_float(sndfile_out, buffer, frame_size);
+    }
+
+    /* Gestión de etiquetas de tiempo */
     if (state != last_state) {
       if (t != last_t)
         fprintf(vadfile, "%.5f\t%.5f\t%s\n", last_t * frame_duration, t * frame_duration, state2str(last_state));
       last_state = state;
       last_t = t;
     }
-
-    if (sndfile_out != 0) {
-      if (state == ST_SILENCE)
-        sf_write_float(sndfile_out, buffer_zeros, frame_size);
-      else
-        sf_write_float(sndfile_out, buffer, frame_size);
-      /* TODO: go back and write zeros in silence segments */
-    }
   }
 
   state = vad_close(vad_data);
-  /* TODO: what do you want to print, for last frames? */
   if (t != last_t)
     fprintf(vadfile, "%.5f\t%.5f\t%s\n", last_t * frame_duration, t * frame_duration + n_read / (float) sf_info.samplerate, state2str(state));
 
-  /* clean up: free memory, close open files */
   free(buffer);
   free(buffer_zeros);
   sf_close(sndfile_in);
